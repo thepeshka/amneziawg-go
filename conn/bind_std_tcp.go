@@ -22,12 +22,10 @@ package conn
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/netip"
 	"sync"
-	"syscall"
 	"time"
 
 	tls "github.com/refraction-networking/utls"
@@ -80,18 +78,8 @@ func (bind *StdNetBindTcp) ParseEndpoint(s string) (Endpoint, error) {
 }
 
 func dialTcp(addr string, protectSocket func(fd int) int) (*net.TCPConn, int, error) {
-	protectStatus := -1
-	control := func(network, address string, conn syscall.RawConn) error {
-		return conn.Control(func(fd uintptr) {
-			protectStatus = protectSocket(int(fd))
-		})
-	}
-
-	dialer := net.Dialer{Timeout: 5 * time.Second, Control: control}
+	dialer := net.Dialer{Timeout: 5 * time.Second}
 	netConn, err := dialer.Dial("tcp", addr)
-	if protectStatus < 0 {
-		return nil, 0, fmt.Errorf("Failed to protect socket: status=%d", protectStatus)
-	}
 	if err != nil {
 		return nil, 0, err
 	}
