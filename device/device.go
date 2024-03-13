@@ -6,6 +6,8 @@
 package device
 
 import (
+	"context"
+	"fmt"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -16,6 +18,7 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/ratelimiter"
 	"github.com/amnezia-vpn/amneziawg-go/rwcancel"
 	"github.com/amnezia-vpn/amneziawg-go/tun"
+	"github.com/leninalive/udptlspipe/pipe"
 	"github.com/tevino/abool/v2"
 )
 
@@ -95,6 +98,9 @@ type Device struct {
 	isASecOn abool.AtomicBool
 	aSecMux  sync.RWMutex
 	aSecCfg  aSecCfgType
+
+	udptlspipe *pipe.Server
+	serverMode bool
 }
 
 type aSecCfgType struct {
@@ -303,6 +309,7 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 
 func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
 	device := new(Device)
+	device.serverMode = false
 	device.state.state.Store(uint32(deviceStateDown))
 	device.closed = make(chan struct{})
 	device.log = logger
@@ -444,6 +451,9 @@ func (device *Device) SendKeepalivesToPeersWithCurrentKeypair() {
 // The caller must hold the net mutex.
 func closeBindLocked(device *Device) error {
 	var err error
+	if device.udptlspipe != nil {
+		err = device.udptlspipe.Shutdown(context.TODO())
+	}
 	netc := &device.net
 	if netc.netlinkCancel != nil {
 		netc.netlinkCancel.Cancel()
@@ -546,6 +556,17 @@ func (device *Device) BindUpdate() error {
 
 	device.log.Verbosef("UDP bind has been updated")
 	device.log.Verbosef(netc.bind.GetOffloadInfo())
+
+	if device.serverMode {
+		srv, err := device.StartUDPTLSPipe(true, "0.0.0.0:443", fmt.Sprintf("127.0.0.1:%d", netc.port))
+		if err != nil {
+			netc.bind.Close()
+			return err
+		}
+
+		device.udptlspipe = srv
+	}
+
 	return nil
 }
 
@@ -798,4 +819,51 @@ func (device *Device) handlePostConfig(tempASecCfg *aSecCfgType) (err error) {
 	device.aSecMux.Unlock()
 
 	return err
+}
+
+func (device *Device) StartUDPTLSPipe(isServer bool, localAddr string, destAddr string) (*pipe.Server, error) {
+	// setup UDP TLS pipe server
+	cfg := &pipe.Config{
+		ListenAddr:      localAddr,
+		DestinationAddr: destAddr,
+		Password:        "amn3zias3curep4ssword",
+		ServerMode:      isServer,
+		//ProxyURL:             o.ProxyURL,
+		//VerifyCertificate:    o.VerifyCertificate,
+		//TLSServerName:        o.TLSServerName,
+		//ProbeReverseProxyURL: o.ProbeReverseProxyURL,
+	}
+
+	/*if o.TLSCertPath != "" {
+		if !o.ServerMode {
+			log.Error("TLS certificate only works in server mode")
+
+			os.Exit(1)
+		}
+
+		cert, certErr := loadX509KeyPair(o.TLSCertPath, o.TLSCertKey)
+		if certErr != nil {
+			log.Error("Failed to load TLS certificate: %v", err)
+
+			os.Exit(1)
+		}
+
+		cfg.TLSCertificate = cert
+	}*/
+
+	srv, err := pipe.NewServer(cfg)
+	if err != nil {
+		device.log.Errorf("Failed to initialize TLS server: %v", err)
+
+		return nil, err
+	}
+
+	err = srv.Start()
+	if err != nil {
+		device.log.Errorf("Failed to start the TLS server: %v", err)
+
+		return nil, err
+	}
+
+	return srv, err
 }
