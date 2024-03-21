@@ -190,7 +190,7 @@ func (peer *Peer) Start() {
 	device := peer.device
 	device.log.Verbosef("%v - Starting", peer)
 
-	if !device.serverMode {
+	if !device.udpMode && !device.serverMode {
 		device.log.Verbosef("Starting udptlspipe")
 
 		if device.udptlspipe != nil {

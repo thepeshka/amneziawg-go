@@ -101,6 +101,7 @@ type Device struct {
 
 	udptlspipe *pipe.Server
 	serverMode bool
+	udpMode bool
 }
 
 type aSecCfgType struct {
@@ -307,8 +308,9 @@ func (device *Device) SetPrivateKey(sk NoisePrivateKey) error {
 	return nil
 }
 
-func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger) *Device {
+func NewDevice(tunDevice tun.Device, bind conn.Bind, logger *Logger, udp bool) *Device {
 	device := new(Device)
+	device.udpMode = udp
 	device.serverMode = false
 	device.state.state.Store(uint32(deviceStateDown))
 	device.closed = make(chan struct{})
@@ -557,7 +559,7 @@ func (device *Device) BindUpdate() error {
 	device.log.Verbosef("UDP bind has been updated")
 	device.log.Verbosef(netc.bind.GetOffloadInfo())
 
-	if device.serverMode {
+	if !device.udpMode && device.serverMode {
 		srv, err := device.StartUDPTLSPipe(true, "0.0.0.0:443", fmt.Sprintf("127.0.0.1:%d", netc.port))
 		if err != nil {
 			netc.bind.Close()
