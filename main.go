@@ -66,7 +66,7 @@ func main() {
 	warning()
 
 	var foreground = false
-	//var utp = false
+	var udp = false
 	var interfaceName = ""
 	if len(os.Args) < 2 || len(os.Args) > 4 {
 		printUsage()
@@ -78,8 +78,8 @@ func main() {
 		case "-f", "--foreground":
 			foreground = true
 
-		//case "-u", "--udptlspipe":
-		//utp = true
+		case "-u", "--udp":
+			udp = true
 
 		default:
 			interfaceName = arg
@@ -222,7 +222,7 @@ func main() {
 		return
 	}
 
-	device := device.NewDevice(tdev, conn.NewDefaultBind(), logger)
+	device := device.NewDevice(tdev, conn.NewDefaultBind(), logger, udp)
 
 	logger.Verbosef("Device started")
 
