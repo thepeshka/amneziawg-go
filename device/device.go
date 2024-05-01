@@ -17,8 +17,8 @@ import (
 	"github.com/amnezia-vpn/amneziawg-go/ipc"
 	"github.com/amnezia-vpn/amneziawg-go/ratelimiter"
 	"github.com/amnezia-vpn/amneziawg-go/rwcancel"
+	"github.com/amnezia-vpn/amneziawg-go/tls/pipe"
 	"github.com/amnezia-vpn/amneziawg-go/tun"
-	"github.com/leninalive/udptlspipe/pipe"
 	"github.com/tevino/abool/v2"
 )
 
